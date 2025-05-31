@@ -1,0 +1,6 @@
+kivymd 
+python-docx
+docxtpl 
+pywin32
+pdf2image
+pillow

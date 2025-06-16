@@ -1,0 +1,114 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>작업확인서 생성</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container-fluid">
+    <!-- 햄버거 버튼: 좌측 토글 -->
+    <button class="btn btn-outline-light me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#docList" aria-controls="docList">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <a class="navbar-brand" href="#">작업확인서</a>
+  </div>
+</nav>
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="docList" aria-labelledby="docListLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="docListLabel">생성된 문서</h5>
+    <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="list-group">
+      {% for d in docs %}
+      <a href="{% url 'app:detail' d.pk %}" class="list-group-item list-group-item-action">
+        {{ d.filename }}<br>
+        <small class="text-muted">{{ d.created_at|date:"Y-m-d H:i" }}</small>
+      </a>
+      {% empty %}
+      <div class="alert alert-secondary">문서가 없습니다.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="container my-5">
+  {% if messages %}
+    {% for m in messages %}
+    <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+  <div class="card shadow-sm">
+    <div class="card-header bg-white"><h5 class="mb-0">새 문서 생성</h5></div>
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">{{ form.work_date.label }}<sup class="text-danger">*</sup></label>
+            {{ form.work_date }}
+            {% if form.work_date.errors %}<div class="invalid-feedback d-block">{{ form.work_date.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.location.label }}<sup class="text-danger">*</sup></label>
+            {{ form.location }}
+            {% if form.location.errors %}<div class="invalid-feedback d-block">{{ form.location.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.device.label }}<sup class="text-danger">*</sup></label>
+            {{ form.device }}
+            {% if form.device.errors %}<div class="invalid-feedback d-block">{{ form.device.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">{{ form.carno.label }}</label>
+            {{ form.carno }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ form.start_time.label }}<sup class="text-danger">*</sup></label>
+            {{ form.start_time }}
+            {% if form.start_time.errors %}<div class="invalid-feedback d-block">{{ form.start_time.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ form.end_time.label }}<sup class="text-danger">*</sup></label>
+            {{ form.end_time }}
+            {% if form.end_time.errors %}<div class="invalid-feedback d-block">{{ form.end_time.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ form.end_day.label }}</label>
+            {{ form.end_day }}
+          </div>
+          <div class="col-12">
+            <label class="form-label">{{ form.work_content.label }}<sup class="text-danger">*</sup></label>
+            {{ form.work_content }}
+            {% if form.work_content.errors %}<div class="invalid-feedback d-block">{{ form.work_content.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ form.confirm_date.label }}<sup class="text-danger">*</sup></label>
+            {{ form.confirm_date }}
+            {% if form.confirm_date.errors %}<div class="invalid-feedback d-block">{{ form.confirm_date.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ form.cert_17.label }}</label>
+            {{ form.cert_17 }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ form.cert_18.label }}</label>
+            {{ form.cert_18 }}
+          </div>
+        </div>
+        <div class="mt-4 text-end">
+          <button type="submit" class="btn btn-primary">생성하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

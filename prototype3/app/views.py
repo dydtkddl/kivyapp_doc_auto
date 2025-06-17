@@ -5,9 +5,12 @@ import logging
 from datetime import datetime, date, timedelta, time
 
 import fitz
-from docx2pdf import convert
-import pythoncom
+# from docx2pdf import convert
+# from docxtpl import DocxTemplate
+import subprocess  # 추가
 from docxtpl import DocxTemplate
+import fitz  # PyMuPDF
+# import pythoncom
 
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -177,7 +180,12 @@ def document_detail(request, pk):
     return render(request, 'app/document_detail.html', {
         'doc':   doc,
         'entry': entry,
-    })
+        })
+# libreoffice --headless --accept="socket,host=127.0.0.1,port=2002;urp;" --norestore &
+from docxtpl import DocxTemplate
+from unoconv import convert
+import fitz  # PyMuPDF
+
 @login_required
 def document_create(request):
     if request.method == 'POST':
@@ -185,12 +193,11 @@ def document_create(request):
         if form.is_valid():
             raw = form.cleaned_data
 
-            # 1) 저장할 폴더·파일명 준비
             timestamp   = timezone.now().strftime('%Y%m%d_%H%M%S')
             slug        = sanitize_filename(raw['location'])
-            user_folder = sanitize_filename(request.user.username)    # 또는 f"user_{request.user.id}"
+            user_folder = sanitize_filename(request.user.username)
             folder_name = f"{timestamp}_{slug}"
-            # MEDIA_ROOT / BASE_STORAGE / 사용자 폴더 / 문서별 하위폴더
+
             save_dir = os.path.join(
                 settings.MEDIA_ROOT,
                 settings.BASE_STORAGE,
@@ -201,42 +208,34 @@ def document_create(request):
 
             date_str  = raw['work_date'].strftime('%Y%m%d')
             docx_name = f"{date_str}_{slug}_작업확인서.docx"
-            tmp_pdf   = os.path.join(save_dir, docx_name.replace('.docx', '_tmp.pdf'))
             docx_path = os.path.join(save_dir, docx_name)
+            pdf_path  = docx_path.replace('.docx', '.pdf')
             img_name  = f"{date_str}_{slug}_preview.png"
             img_path  = os.path.join(save_dir, img_name)
 
             try:
-                # 2) DOCX 생성
                 tpl_path = os.path.join(settings.BASE_DIR, 'config', '작업확인서.docx')
                 tpl = DocxTemplate(tpl_path)
                 tpl.render(create_context(raw))
                 tpl.save(docx_path)
 
-                # 3) PDF 변환 (COM 초기화/해제)
-                pythoncom.CoInitialize()
-                try:
-                    convert(docx_path, tmp_pdf)
-                finally:
-                    pythoncom.CoUninitialize()
+                # UNO 기반 PDF 변환
+                with open(docx_path, "rb") as docx_file:
+                    pdf_bytes = convert(docx_file, format='pdf')
+                    with open(pdf_path, "wb") as f_out:
+                        f_out.write(pdf_bytes)
 
-                # 4) 첫 페이지 이미지로 저장
-                pdf = fitz.open(tmp_pdf)
+                # PDF → 이미지 (미리보기용)
+                pdf = fitz.open(pdf_path)
                 pix = pdf[0].get_pixmap(dpi=150)
                 pix.save(img_path)
                 pdf.close()
-                os.remove(tmp_pdf)
+                os.remove(pdf_path)
 
-                # 5) DB에 상대경로 저장
-                #   상대경로: BASE_STORAGE/<user_folder>/<folder_name>
-                rel_dir = os.path.join(
-                    settings.BASE_STORAGE,
-                    user_folder,
-                    folder_name
-                )
+                rel_dir = os.path.join(settings.BASE_STORAGE, user_folder, folder_name)
                 with transaction.atomic():
                     doc = WorkFormDocument.objects.create(
-                        user = request.user,
+                        user=request.user,
                         folder_name=folder_name,
                         docx_file=os.path.join(rel_dir, docx_name),
                         preview_image=os.path.join(rel_dir, img_name)
@@ -266,10 +265,8 @@ def document_create(request):
     })
 
 
-
 @login_required
 def document_edit(request, pk):
-    # 1) 해당 문서가 로그인한 사용자 것인지 확인
     doc   = get_object_or_404(WorkFormDocument, pk=pk, user=request.user)
     entry = doc.entries.first()
 
@@ -278,7 +275,8 @@ def document_edit(request, pk):
         if form.is_valid():
             raw = form.cleaned_data
             user_folder = sanitize_filename(request.user.username)
-            # --- 2) 기존 폴더(파일 전체) 삭제 ---
+
+            # 기존 폴더 삭제
             old_dir = os.path.join(
                 settings.MEDIA_ROOT,
                 settings.BASE_STORAGE,
@@ -288,68 +286,63 @@ def document_edit(request, pk):
             if os.path.isdir(old_dir):
                 shutil.rmtree(old_dir)
 
-            # --- 3) 새 폴더 경로 준비 (user/<timestamp_slug>) ---
-            
             ts = timezone.now().strftime('%Y%m%d_%H%M%S')
             slug = sanitize_filename(raw['location'])
-            new_folder = os.path.join(user_folder, f"{ts}_{slug}")
+            folder_name = f"{ts}_{slug}"
 
             save_dir = os.path.join(
                 settings.MEDIA_ROOT,
                 settings.BASE_STORAGE,
-                new_folder
+                user_folder,
+                folder_name
             )
             os.makedirs(save_dir, exist_ok=True)
 
-            # 파일명 준비
             date_str  = raw['work_date'].strftime('%Y%m%d')
             docx_name = f"{date_str}_{slug}_작업확인서.docx"
-            tmp_pdf   = os.path.join(save_dir, docx_name.replace('.docx', '_tmp.pdf'))
             docx_path = os.path.join(save_dir, docx_name)
+            pdf_path  = docx_path.replace('.docx', '.pdf')
             img_name  = f"{date_str}_{slug}_preview.png"
             img_path  = os.path.join(save_dir, img_name)
 
             try:
-                # --- 4) DOCX 생성 ---
-                tpl = DocxTemplate(os.path.join(settings.BASE_DIR, 'config', '작업확인서.docx'))
+                tpl_path = os.path.join(settings.BASE_DIR, 'config', '작업확인서.docx')
+                tpl = DocxTemplate(tpl_path)
                 tpl.render(create_context(raw))
                 tpl.save(docx_path)
 
-                # --- 5) PDF 변환 & 이미지 추출 ---
-                pythoncom.CoInitialize()
-                try:
-                    convert(docx_path, tmp_pdf)
-                finally:
-                    pythoncom.CoUninitialize()
+                with open(docx_path, "rb") as docx_file:
+                    pdf_bytes = convert(docx_file, format='pdf')
+                    with open(pdf_path, "wb") as f_out:
+                        f_out.write(pdf_bytes)
 
-                pdf = fitz.open(tmp_pdf)
+                pdf = fitz.open(pdf_path)
                 pix = pdf[0].get_pixmap(dpi=150)
                 pix.save(img_path)
                 pdf.close()
-                os.remove(tmp_pdf)
+                os.remove(pdf_path)
 
-                # --- 6) DB 업데이트 (transaction) ---
-                rel_folder = os.path.join(settings.BASE_STORAGE, new_folder)
+                rel_dir = os.path.join(settings.BASE_STORAGE, user_folder, folder_name)
                 with transaction.atomic():
-                    doc.folder_name        = new_folder
-                    doc.docx_file.name     = os.path.join(rel_folder, docx_name)
-                    doc.preview_image.name = os.path.join(rel_folder, img_name)
+                    doc.folder_name        = folder_name
+                    doc.docx_file.name     = os.path.join(rel_dir, docx_name)
+                    doc.preview_image.name = os.path.join(rel_dir, img_name)
                     doc.save()
-                    form.save()  # entry 데이터 업데이트
+                    form.save()
 
                 messages.success(request, '작업확인서가 성공적으로 수정되었습니다.')
                 return redirect('document_detail', pk=doc.pk)
 
             except Exception as e:
+                logger.error(e, exc_info=True)
                 messages.error(request, f'수정 중 오류가 발생했습니다: {e}')
         else:
             messages.error(request, '입력 내용을 확인해주세요.')
-
     else:
         form = EntryForm(instance=entry)
 
     return render(request, 'app/edit.html', {
         'form': form,
         'doc':  doc,
-        'mode':'수정',
+        'mode': '수정',
     })

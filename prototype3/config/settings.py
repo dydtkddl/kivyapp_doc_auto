@@ -7,8 +7,8 @@ with open(BASE_DIR / 'config' / 'config.json', encoding='utf-8') as f:
     _CONFIG = json.load(f)
 
 SECRET_KEY = 'your-secret-key'
-DEBUG = True
-ALLOWED_HOSTS = []
+DEBUG = False
+ALLOWED_HOSTS = ["WorkForApp.pythonanywhere.com"]
 
 INSTALLED_APPS = [
      'widget_tweaks',

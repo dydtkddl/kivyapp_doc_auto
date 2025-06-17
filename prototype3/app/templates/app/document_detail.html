@@ -1,49 +1,90 @@
 {% extends 'app/base.html' %}
 {% block title %}문서 상세{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center mt-4">
   <div class="col-lg-8">
+
+    <!-- 1) 메타 정보 -->
     <div class="card shadow-sm mb-4">
       <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">{{ doc.location }} - {{ doc.work_date }}</h5>
+        <h5 class="mb-0">{{ entry.location }} - {{ entry.work_date }}</h5>
         <div>
+          <form method="post"
+                  action="{% url 'document_delete' doc.pk %}"
+                  style="display:inline;"
+                  onsubmit="return confirm('정말 이 문서를 삭제하시겠습니까?');">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger">
+                삭제
+              </button>
+            </form>
           <a href="{% url 'document_edit' doc.pk %}" class="btn btn-sm btn-light me-2">수정</a>
           <a href="{% url 'document_list' %}" class="btn btn-sm btn-light">목록</a>
         </div>
       </div>
       <div class="card-body">
         <dl class="row mb-4">
-          <dt class="col-sm-4">장비명</dt><dd class="col-sm-8">{{ doc.device }}</dd>
-          <dt class="col-sm-4">차량번호</dt><dd class="col-sm-8">{{ doc.carno|default:"미지정" }}</dd>
-          <dt class="col-sm-4">시작시간</dt><dd class="col-sm-8">{{ doc.start_time }}</dd>
-          <dt class="col-sm-4">종료시간</dt><dd class="col-sm-8">{{ doc.end_time }} {% if doc.end_day == 'next' %}(익일){% endif %}</dd>
-          <dt class="col-sm-4">확인일자</dt><dd class="col-sm-8">{{ doc.confirm_date }}</dd>
-          <dt class="col-sm-4">차단팀장명</dt><dd class="col-sm-8">{{ doc.cert_17|default:"없음" }}</dd>
-          <dt class="col-sm-4">현장책임자명</dt><dd class="col-sm-8">{{ doc.cert_18|default:"없음" }}</dd>
+          <dt class="col-sm-4">작업일자</dt><dd class="col-sm-8">{{ entry.work_date }}</dd>
+          <dt class="col-sm-4">현장명</dt><dd class="col-sm-8">{{ entry.location }}</dd>
+          <dt class="col-sm-4">장비명</dt><dd class="col-sm-8">{{ entry.device }}</dd>
+          <dt class="col-sm-4">차량번호</dt><dd class="col-sm-8">{{ entry.carno|default:"미지정" }}</dd>
+          <dt class="col-sm-4">시작시간</dt><dd class="col-sm-8">{{ entry.start_time }}</dd>
+          <dt class="col-sm-4">종료시간</dt>
+            <dd class="col-sm-8">
+              {{ entry.end_time }}
+              {% if entry.end_day == 'next' %}(익일){% endif %}
+            </dd>
+          <dt class="col-sm-4">확인일자</dt><dd class="col-sm-8">{{ entry.confirm_date }}</dd>
+          <dt class="col-sm-4">차단팀장명</dt><dd class="col-sm-8">{{ entry.cert_17|default:"없음" }}</dd>
+          <dt class="col-sm-4">현장책임자명</dt><dd class="col-sm-8">{{ entry.cert_18|default:"없음" }}</dd>
         </dl>
+
         <h6>작업 내용</h6>
-        <p class="border p-3 rounded bg-light">{{ doc.work_content|linebreaksbr }}</p>
+        <p class="border p-3 rounded bg-light">
+          {{ entry.work_content|linebreaksbr }}
+        </p>
       </div>
     </div>
+
+
+    <!-- 2) 생성된 파일 & 미리보기 -->
     <div class="card shadow-sm">
       <div class="card-header bg-secondary text-white">
-        <h6 class="mb-0">생성된 파일</h6>
+        <h6 class="mb-0">생성된 파일 &amp; 미리보기</h6>
       </div>
       <div class="card-body">
-        {% if doc.folder_name %}
-          <ul class="list-group">
-            {% for file in doc.user.documents.get(pk=doc.pk).document_files %}
-              <li class="list-group-item d-flex justify-content-between align-items-center">
-                <span>{{ file.name }}</span>
-                <a href="{{ file.url }}" class="btn btn-sm btn-outline-primary">다운로드</a>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p>생성된 파일이 없습니다.</p>
-        {% endif %}
+                <ul class="list-group">
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            DOCX 파일
+            <a href="{{ doc.docx_file.url }}"
+               class="btn btn-sm btn-outline-primary">
+              다운로드
+            </a>
+          </li>
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            미리보기 이미지 파일
+            <a href="{{ doc.preview_image.url }}"
+               class="btn btn-sm btn-outline-primary">
+              다운로드
+            </a>
+          </li>
+        </ul>
+        {# 화면에 바로 미리보기 이미지 표시 #}
+        <div class="mb-4 text-center">
+          <p class="mb-2">
+            <!-- <strong>미리보기</strong> -->
+
+            </p>
+                      <img src="{{ doc.preview_image.url }}"
+               class="img-fluid rounded"
+               alt="미리보기 이미지">
+        </div>
+
+
       </div>
     </div>
+
   </div>
 </div>
 {% endblock %}

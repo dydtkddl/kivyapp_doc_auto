@@ -1,7 +1,7 @@
+# app/forms.py
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import WorkFormDocument
 
 class SignUpForm(UserCreationForm):
     email = forms.EmailField(
@@ -29,6 +29,13 @@ class SignUpForm(UserCreationForm):
                 'placeholder': '비밀번호 확인'
             }),
         }
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if User.objects.filter(email=email).exists():
+            raise forms.ValidationError('이미 사용 중인 이메일입니다.')
+        return email
+
 from django import forms
 from .models import WorkFormDocument, WorkFormEntry
 

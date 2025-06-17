@@ -1,5 +1,4 @@
 {% extends 'app/base.html' %}
-<!-- {% load widget_tweaks %} -->
 {% block title %}회원가입{% endblock %}
 
 {% block content %}
@@ -10,21 +9,45 @@
         <h4 class="mb-0">새 계정 만들기</h4>
       </div>
       <div class="card-body">
-        <form method="post" novalidate>
-          {% csrf_token %}
-          {% for field in form %}
-              {{ field.label_tag }}
-              {{ field
-                 | add_class:"form-control"
-                 | attr:"placeholder:"+field.label }}
-              {% if field.help_text %}
-                <small class="form-text text-muted">{{ field.help_text }}</small>
-              {% endif %}
-              {% for error in field.errors %}
-                <div class="text-danger small">{{ error }}</div>
-              {% endfor %}
+        {% if messages %}
+          {% for msg in messages %}
+            <div class="alert alert-{{ msg.tags }} alert-dismissible fade show">
+              {{ msg }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
           {% endfor %}
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {# 비-필드 오류(전체 오류) #}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+              {% for err in form.non_field_errors %}
+                <div>{{ err }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          {# 각 필드별 #}
+          {% for field in form %}
+            <div class="mb-3">
+              <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}
+                <div class="text-danger small">
+                  {% for err in field.errors %}
+                    <div>{{ err }}</div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              {% if field.help_text %}
+                <div class="form-text">{{ field.help_text }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+
           <button type="submit" class="btn btn-success w-100">가입하기</button>
         </form>
       </div>

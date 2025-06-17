@@ -19,6 +19,12 @@ class WorkFormDocument(models.Model):
     """
     Metadata for generated DOCX and preview image.
     """
+    user          = models.ForeignKey(
+                    settings.AUTH_USER_MODEL,
+                        on_delete=models.CASCADE,
+                        related_name='documents',
+                        default = None
+                    )
     created_at = models.DateTimeField(auto_now_add=True)
     folder_name = models.CharField('폴더명', max_length=255)
     docx_file = models.FileField('DOCX 파일', upload_to=upload_to)

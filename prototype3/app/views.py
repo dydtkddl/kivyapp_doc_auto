@@ -68,6 +68,10 @@ def create_context(data: dict) -> dict:
 #────────────────────────────────────────────
 # Authentication Views
 #────────────────────────────────────────────
+# app/views.py
+from django.contrib.auth import login
+from django.contrib import messages
+
 def register(request):
     if request.method == 'POST':
         form = SignUpForm(request.POST)
@@ -76,7 +80,9 @@ def register(request):
             login(request, user)
             messages.success(request, '회원가입이 완료되었습니다.')
             return redirect('document_list')
-        messages.error(request, '입력 내용을 확인해주세요.')
+        else:
+            # form.errors 안에 field별, non_field_errors가 모두 담겨 있습니다.
+            messages.error(request, '회원가입에 실패했습니다. 아래 오류를 확인해주세요.')
     else:
         form = SignUpForm()
     return render(request, 'app/register.html', {'form': form})
@@ -104,65 +110,246 @@ def find_password(request):
 #────────────────────────────────────────────
 # Document & Entry CRUD Views
 #────────────────────────────────────────────
+from django.db.models import F
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+
 @login_required
 def document_list(request):
-    docs = WorkFormDocument.objects.order_by('-created_at')
-    return render(request, 'app/document_list.html', {'documents': docs})
+    # 1) 로그인 유저 문서만
+    qs = WorkFormDocument.objects.filter(user=request.user)
 
+    # 2) 검색어 q: 현장명(Entry.location)에 대해 icontains 검색
+    q = request.GET.get('q', '').strip()
+    if q:
+        qs = qs.filter(entries__location__icontains=q)
+
+    # 3) 정렬 sort 파라미터 처리
+    sort = request.GET.get('sort')
+    if sort == 'date_asc':
+        qs = qs.order_by('entries__work_date')
+    elif sort == 'date_desc':
+        qs = qs.order_by('-entries__work_date')
+    elif sort == 'name_asc':
+        qs = qs.order_by('entries__location')
+    elif sort == 'name_desc':
+        qs = qs.order_by('-entries__location')
+    else:
+        # 기본: 최신순(생성일)
+        qs = qs.order_by('-created_at')
+
+    # 중복 제거 (entries 조인 시)
+    documents = qs.distinct()
+
+    return render(request, 'app/document_list.html', {
+        'documents': documents,
+        'q': q,
+        'sort': sort,
+    })
 
 @login_required
+def document_delete(request, pk):
+    # 본인 것인지 체크
+    doc = get_object_or_404(WorkFormDocument, pk=pk, user=request.user)
+    user_folder = sanitize_filename(request.user.username)
+            # --- 2) 기존 폴더(파일 전체) 삭제 ---
+    old_dir = os.path.join(
+        settings.MEDIA_ROOT,
+        settings.BASE_STORAGE,
+        user_folder,
+        doc.folder_name
+    )
+    if os.path.isdir(old_dir):
+        shutil.rmtree(old_dir)
+    if request.method == 'POST':
+        doc.delete()
+        messages.success(request, '문서가 삭제되었습니다.')
+        return redirect('document_list')
+
+    # POST 가 아니면 상세로 돌려보내거나 에러 처리
+    messages.error(request, '잘못된 요청입니다.')
+    return redirect('document_detail', pk=pk)
+@login_required
 def document_detail(request, pk):
-    doc = get_object_or_404(WorkFormDocument, pk=pk)
-    entries = doc.entries.all()
-    return render(request, 'app/document_detail.html', {'doc': doc, 'entries': entries})
-
-
+    # 본인 소유인지 체크하면서 가져오기
+    doc   = get_object_or_404(WorkFormDocument, pk=pk, user=request.user)
+    entry = doc.entries.first()
+    return render(request, 'app/document_detail.html', {
+        'doc':   doc,
+        'entry': entry,
+    })
 @login_required
 def document_create(request):
     if request.method == 'POST':
-        doc_form = DocumentForm(request.POST, request.FILES)
-        entry_form = EntryForm(request.POST)
-        if doc_form.is_valid() and entry_form.is_valid():
-            # 1) 파일·이미지 메타 저장
-            doc = doc_form.save(commit=False)
-            if not doc.folder_name:
-                doc.folder_name = f"user_{request.user.id}_{timezone.now().strftime('%Y%m%d%H%M%S')}"
-            doc.save()
-            # 2) 폼 입력 데이터 저장
-            entry = entry_form.save(commit=False)
-            entry.document = doc
-            entry.save()
-            messages.success(request, '작업확인서가 생성되었습니다.')
-            return redirect('document_detail', pk=doc.pk)
-        messages.error(request, '입력 데이터를 확인해주세요.')
+        form = EntryForm(request.POST)
+        if form.is_valid():
+            raw = form.cleaned_data
+
+            # 1) 저장할 폴더·파일명 준비
+            timestamp   = timezone.now().strftime('%Y%m%d_%H%M%S')
+            slug        = sanitize_filename(raw['location'])
+            user_folder = sanitize_filename(request.user.username)    # 또는 f"user_{request.user.id}"
+            folder_name = f"{timestamp}_{slug}"
+            # MEDIA_ROOT / BASE_STORAGE / 사용자 폴더 / 문서별 하위폴더
+            save_dir = os.path.join(
+                settings.MEDIA_ROOT,
+                settings.BASE_STORAGE,
+                user_folder,
+                folder_name
+            )
+            os.makedirs(save_dir, exist_ok=True)
+
+            date_str  = raw['work_date'].strftime('%Y%m%d')
+            docx_name = f"{date_str}_{slug}_작업확인서.docx"
+            tmp_pdf   = os.path.join(save_dir, docx_name.replace('.docx', '_tmp.pdf'))
+            docx_path = os.path.join(save_dir, docx_name)
+            img_name  = f"{date_str}_{slug}_preview.png"
+            img_path  = os.path.join(save_dir, img_name)
+
+            try:
+                # 2) DOCX 생성
+                tpl_path = os.path.join(settings.BASE_DIR, 'config', '작업확인서.docx')
+                tpl = DocxTemplate(tpl_path)
+                tpl.render(create_context(raw))
+                tpl.save(docx_path)
+
+                # 3) PDF 변환 (COM 초기화/해제)
+                pythoncom.CoInitialize()
+                try:
+                    convert(docx_path, tmp_pdf)
+                finally:
+                    pythoncom.CoUninitialize()
+
+                # 4) 첫 페이지 이미지로 저장
+                pdf = fitz.open(tmp_pdf)
+                pix = pdf[0].get_pixmap(dpi=150)
+                pix.save(img_path)
+                pdf.close()
+                os.remove(tmp_pdf)
+
+                # 5) DB에 상대경로 저장
+                #   상대경로: BASE_STORAGE/<user_folder>/<folder_name>
+                rel_dir = os.path.join(
+                    settings.BASE_STORAGE,
+                    user_folder,
+                    folder_name
+                )
+                with transaction.atomic():
+                    doc = WorkFormDocument.objects.create(
+                        user = request.user,
+                        folder_name=folder_name,
+                        docx_file=os.path.join(rel_dir, docx_name),
+                        preview_image=os.path.join(rel_dir, img_name)
+                    )
+                    WorkFormEntry.objects.create(document=doc, **raw)
+
+                messages.success(request, '작업확인서가 생성되었습니다.')
+                return redirect('document_detail', pk=doc.pk)
+
+            except Exception as e:
+                logger.error(e, exc_info=True)
+                messages.error(request, f'문서 생성 중 오류가 발생했습니다: {e}')
+        else:
+            messages.error(request, '입력 내용을 확인해주세요.')
     else:
-        doc_form = DocumentForm()
-        entry_form = EntryForm()
+        form = EntryForm(initial={
+            'work_date':    date.today(),
+            'confirm_date': date.today(),
+            'start_time':   time(9, 0),
+            'end_time':     time(18, 0),
+            'end_day':      'same',
+        })
+
     return render(request, 'app/form.html', {
-        'doc_form': doc_form,
-        'entry_form': entry_form,
-        'mode': '생성'
+        'entry_form': form,
+        'mode':       '생성',
     })
+
 
 
 @login_required
 def document_edit(request, pk):
-    doc = get_object_or_404(WorkFormDocument, pk=pk)
+    # 1) 해당 문서가 로그인한 사용자 것인지 확인
+    doc   = get_object_or_404(WorkFormDocument, pk=pk, user=request.user)
     entry = doc.entries.first()
+
     if request.method == 'POST':
-        doc_form = DocumentForm(request.POST, request.FILES, instance=doc)
-        entry_form = EntryForm(request.POST, instance=entry)
-        if doc_form.is_valid() and entry_form.is_valid():
-            doc_form.save()
-            entry_form.save()
-            messages.success(request, '작업확인서가 업데이트되었습니다.')
-            return redirect('document_detail', pk=pk)
-        messages.error(request, '입력 데이터를 확인해주세요.')
+        form = EntryForm(request.POST, instance=entry)
+        if form.is_valid():
+            raw = form.cleaned_data
+            user_folder = sanitize_filename(request.user.username)
+            # --- 2) 기존 폴더(파일 전체) 삭제 ---
+            old_dir = os.path.join(
+                settings.MEDIA_ROOT,
+                settings.BASE_STORAGE,
+                user_folder,
+                doc.folder_name
+            )
+            if os.path.isdir(old_dir):
+                shutil.rmtree(old_dir)
+
+            # --- 3) 새 폴더 경로 준비 (user/<timestamp_slug>) ---
+            
+            ts = timezone.now().strftime('%Y%m%d_%H%M%S')
+            slug = sanitize_filename(raw['location'])
+            new_folder = os.path.join(user_folder, f"{ts}_{slug}")
+
+            save_dir = os.path.join(
+                settings.MEDIA_ROOT,
+                settings.BASE_STORAGE,
+                new_folder
+            )
+            os.makedirs(save_dir, exist_ok=True)
+
+            # 파일명 준비
+            date_str  = raw['work_date'].strftime('%Y%m%d')
+            docx_name = f"{date_str}_{slug}_작업확인서.docx"
+            tmp_pdf   = os.path.join(save_dir, docx_name.replace('.docx', '_tmp.pdf'))
+            docx_path = os.path.join(save_dir, docx_name)
+            img_name  = f"{date_str}_{slug}_preview.png"
+            img_path  = os.path.join(save_dir, img_name)
+
+            try:
+                # --- 4) DOCX 생성 ---
+                tpl = DocxTemplate(os.path.join(settings.BASE_DIR, 'config', '작업확인서.docx'))
+                tpl.render(create_context(raw))
+                tpl.save(docx_path)
+
+                # --- 5) PDF 변환 & 이미지 추출 ---
+                pythoncom.CoInitialize()
+                try:
+                    convert(docx_path, tmp_pdf)
+                finally:
+                    pythoncom.CoUninitialize()
+
+                pdf = fitz.open(tmp_pdf)
+                pix = pdf[0].get_pixmap(dpi=150)
+                pix.save(img_path)
+                pdf.close()
+                os.remove(tmp_pdf)
+
+                # --- 6) DB 업데이트 (transaction) ---
+                rel_folder = os.path.join(settings.BASE_STORAGE, new_folder)
+                with transaction.atomic():
+                    doc.folder_name        = new_folder
+                    doc.docx_file.name     = os.path.join(rel_folder, docx_name)
+                    doc.preview_image.name = os.path.join(rel_folder, img_name)
+                    doc.save()
+                    form.save()  # entry 데이터 업데이트
+
+                messages.success(request, '작업확인서가 성공적으로 수정되었습니다.')
+                return redirect('document_detail', pk=doc.pk)
+
+            except Exception as e:
+                messages.error(request, f'수정 중 오류가 발생했습니다: {e}')
+        else:
+            messages.error(request, '입력 내용을 확인해주세요.')
+
     else:
-        doc_form = DocumentForm(instance=doc)
-        entry_form = EntryForm(instance=entry)
+        form = EntryForm(instance=entry)
+
     return render(request, 'app/edit.html', {
-        'doc_form': doc_form,
-        'entry_form': entry_form,
-        'mode': '수정'
+        'form': form,
+        'doc':  doc,
+        'mode':'수정',
     })

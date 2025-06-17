@@ -16,10 +16,14 @@ urlpatterns = [
     path('<int:pk>/edit/', views.document_edit,   name='document_edit'),
 
     # Authentication
+    path('<int:pk>/delete/', views.document_delete, name='document_delete'),
     path('register/',      views.register,         name='register'),
     path('login/',         LoginView.as_view(template_name='app/login.html'), name='login'),
-    path('logout/',        LogoutView.as_view(),  name='logout'),
-
+        path(
+        'logout/',
+        LogoutView.as_view(next_page=reverse_lazy('login')),
+        name='logout'
+    ),
     # Find Username / Password Reset
     path('find-username/', views.find_username,   name='find_username'),
     path('find-password/', views.find_password,   name='find_password'),

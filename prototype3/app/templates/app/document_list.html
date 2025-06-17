@@ -1,0 +1,23 @@
+{% extends 'app/base.html' %}
+{% block title %}내 작업확인서{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+  <h4>내 작업확인서</h4>
+  <a href="{% url 'document_create' %}" class="btn btn-success">새 문서 생성</a>
+</div>
+<div class="row row-cols-1 row-cols-md-2 g-4">
+  {% for doc in documents %}
+    <div class="col">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">{{ doc.location }}</h5>
+          <p class="card-text">작업일자: {{ doc.work_date }}</p>
+          <a href="{% url 'document_detail' doc.pk %}" class="btn btn-outline-primary">상세보기</a>
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <p>저장된 문서가 없습니다.</p>
+  {% endfor %}
+</div>
+{% endblock %}

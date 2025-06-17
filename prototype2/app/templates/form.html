@@ -10,21 +10,20 @@
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
   <div class="container-fluid">
-    <!-- 햄버거 버튼: 좌측 토글 -->
-    <button class="btn btn-outline-light me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#docList" aria-controls="docList">
+    <button class="btn btn-outline-light me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#docList">
       <span class="navbar-toggler-icon"></span>
     </button>
     <a class="navbar-brand" href="#">작업확인서</a>
   </div>
 </nav>
-
-<div class="offcanvas offcanvas-start" tabindex="-1" id="docList" aria-labelledby="docListLabel">
+<div class="offcanvas offcanvas-start" tabindex="-1" id="docList">
   <div class="offcanvas-header">
-    <h5 class="offcanvas-title" id="docListLabel">생성된 문서</h5>
-    <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    <h5 class="offcanvas-title">문서 검색</h5>
+    <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
   </div>
   <div class="offcanvas-body">
-    <div class="list-group">
+    <input id="searchInput" type="text" class="form-control mb-3" placeholder="문서 검색..." onkeyup="filterDocs()">
+    <div class="list-group" id="docListGroup">
       {% for d in docs %}
       <a href="{% url 'app:detail' d.pk %}" class="list-group-item list-group-item-action">
         {{ d.filename }}<br>
@@ -36,13 +35,8 @@
     </div>
   </div>
 </div>
-
 <div class="container my-5">
-  {% if messages %}
-    {% for m in messages %}
-    <div class="alert alert-{{ m.tags }}">{{ m }}</div>
-    {% endfor %}
-  {% endif %}
+  {% if messages %}{% for m in messages %}<div class="alert alert-{{ m.tags }}">{{ m }}</div>{% endfor %}{% endif %}
   <div class="card shadow-sm">
     <div class="card-header bg-white"><h5 class="mb-0">새 문서 생성</h5></div>
     <div class="card-body">
@@ -108,7 +102,9 @@
     </div>
   </div>
 </div>
-
+<script>
+function filterDocs() { const input=document.getElementById('searchInput').value.toLowerCase(); document.querySelectorAll('#docListGroup a').forEach(item=>item.style.display=item.textContent.toLowerCase().includes(input)?'':'none'); }
+</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

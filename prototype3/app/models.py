@@ -9,12 +9,15 @@ DAY_CHOICES = [
 ]
 
 def upload_to(instance, filename):
-    # MEDIA_ROOT/BASE_STORAGE/generated/<folder_name>/<filename>
-    return os.path.join(settings.BASE_STORAGE, 'generated', instance.folder_name, filename)
+    """
+    Save files under MEDIA_ROOT/<BASE_STORAGE>/<folder_name>/<filename>
+    """
+    base = getattr(settings, 'BASE_STORAGE', '')
+    return os.path.join(base, instance.folder_name, filename)
 
 class WorkFormDocument(models.Model):
     """
-    생성된 DOCX 및 이미지 메타데이터 저장
+    Metadata for generated DOCX and preview image.
     """
     created_at = models.DateTimeField(auto_now_add=True)
     folder_name = models.CharField('폴더명', max_length=255)
@@ -33,27 +36,25 @@ class WorkFormDocument(models.Model):
 
 class WorkFormEntry(models.Model):
     """
-    사용자가 폼으로 입력한 작업확인서 정보 저장
+    User-entered form data for work confirmation.
     """
     document = models.ForeignKey(
         WorkFormDocument,
         on_delete=models.CASCADE,
         related_name='entries'
     )
-    work_date = models.DateField('작업일자')
-    location = models.CharField('현장명', max_length=100)
-    device = models.CharField('장비명', max_length=100)
-    carno = models.CharField('차량번호', max_length=100, blank=True)
-    start_time = models.TimeField('시작시간')
-    end_time = models.TimeField('종료시간')
-    end_day = models.CharField(
-        '종료일', max_length=10, choices=DAY_CHOICES, default='same'
-    )
+    work_date    = models.DateField('작업일자')
+    location     = models.CharField('현장명', max_length=100)
+    device       = models.CharField('장비명', max_length=100)
+    carno        = models.CharField('차량번호', max_length=100, blank=True)
+    start_time   = models.TimeField('시작시간')
+    end_time     = models.TimeField('종료시간')
+    end_day      = models.CharField('종료일', max_length=10, choices=DAY_CHOICES, default='same')
     work_content = models.TextField('작업내용')
     confirm_date = models.DateField('확인일자')
-    cert_17 = models.CharField('차단팀장명', max_length=100, blank=True)
-    cert_18 = models.CharField('현장책임자명', max_length=100, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    cert_17      = models.CharField('차단팀장명', max_length=100, blank=True)
+    cert_18      = models.CharField('현장책임자명', max_length=100, blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']

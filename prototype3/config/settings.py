@@ -2,18 +2,16 @@ import os
 import json
 from pathlib import Path
 
-# 프로젝트 베이스 디렉토리
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-# config.json 로드
-with open(BASE_DIR / 'config' / 'config.json', encoding='utf-8') as cfg_file:
-    _CFG = json.load(cfg_file)
+with open(BASE_DIR / 'config' / 'config.json', encoding='utf-8') as f:
+    _CONFIG = json.load(f)
 
 SECRET_KEY = 'your-secret-key'
 DEBUG = True
 ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
+     'widget_tweaks',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -38,7 +36,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [ BASE_DIR / 'templates' ],
+        'DIRS': [BASE_DIR / 'app' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -52,6 +50,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
 
 DATABASES = {
     'default': {
@@ -60,7 +59,12 @@ DATABASES = {
     }
 }
 
-AUTH_PASSWORD_VALIDATORS = []
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
 
 LANGUAGE_CODE = 'ko-kr'
 TIME_ZONE = 'Asia/Seoul'
@@ -69,11 +73,14 @@ USE_L10N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [ BASE_DIR / 'static' ]
+STATIC_ROOT = BASE_DIR / 'static'
 
-# 미디어 파일 설정
+BASE_STORAGE = _CONFIG['BASE_STORAGE']
+MEDIA_ROOT = BASE_DIR / _CONFIG['MEDIA_ROOT']
+MEDIA_URL = _CONFIG['MEDIA_URL']
 
-# 저장 기본 경로 (config.json)
-BASE_STORAGE = _CFG.get('base_storage', '')
-MEDIA_URL = '/media/'
-MEDIA_ROOT = Path(BASE_STORAGE)
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'document_list'
+LOGOUT_REDIRECT_URL = 'login'
+
+EMAIL_BACKEND = _CONFIG['EMAIL_BACKEND']

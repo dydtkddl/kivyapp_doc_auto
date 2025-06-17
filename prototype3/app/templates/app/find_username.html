@@ -1,0 +1,23 @@
+{% extends 'app/base.html' %}
+{% block title %}아이디 찾기{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white"><h5>아이디 찾기</h5></div>
+      <div class="card-body">
+        <form method="post">{% csrf_token %}
+          <div class="mb-3">
+            <label for="email" class="form-label">이메일</label>
+            <input type="email" class="form-control" id="email" name="email" placeholder="가입하신 이메일" required>
+            {% for message in messages %}
+              <div class="text-{{ message.tags }} small">{{ message }}</div>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-success w-100">아이디 찾기</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

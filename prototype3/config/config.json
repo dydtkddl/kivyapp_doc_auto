@@ -1,0 +1,6 @@
+{
+  "BASE_STORAGE": "generated",
+  "MEDIA_ROOT": "media",
+  "MEDIA_URL": "/media/",
+  "EMAIL_BACKEND": "django.core.mail.backends.console.EmailBackend"
+}

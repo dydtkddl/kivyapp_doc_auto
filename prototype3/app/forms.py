@@ -1,4 +1,40 @@
-# app/forms.py
+# # app/forms.py
+# from django import forms
+# from django.contrib.auth.forms import UserCreationForm
+# from django.contrib.auth.models import User
+
+# class SignUpForm(UserCreationForm):
+#     email = forms.EmailField(
+#         required=True,
+#         widget=forms.EmailInput(attrs={
+#             'class': 'form-control',
+#             'placeholder': '이메일'
+#         })
+#     )
+
+#     class Meta:
+#         model = User
+#         fields = ('username', 'email', 'password1', 'password2')
+#         widgets = {
+#             'username': forms.TextInput(attrs={
+#                 'class': 'form-control',
+#                 'placeholder': '아이디'
+#             }),
+#             'password1': forms.PasswordInput(attrs={
+#                 'class': 'form-control',
+#                 'placeholder': '비밀번호'
+#             }),
+#             'password2': forms.PasswordInput(attrs={
+#                 'class': 'form-control',
+#                 'placeholder': '비밀번호 확인'
+#             }),
+#         }
+
+#     def clean_email(self):
+#         email = self.cleaned_data.get('email')
+#         if User.objects.filter(email=email).exists():
+#             raise forms.ValidationError('이미 사용 중인 이메일입니다.')
+#         return email
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
@@ -12,6 +48,23 @@ class SignUpForm(UserCreationForm):
         })
     )
 
+    password1 = forms.CharField(
+        label="비밀번호",
+        strip=False,
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': '비밀번호'
+        })
+    )
+    password2 = forms.CharField(
+        label="비밀번호 확인",
+        strip=False,
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': '비밀번호 확인'
+        })
+    )
+
     class Meta:
         model = User
         fields = ('username', 'email', 'password1', 'password2')
@@ -20,21 +73,26 @@ class SignUpForm(UserCreationForm):
                 'class': 'form-control',
                 'placeholder': '아이디'
             }),
-            'password1': forms.PasswordInput(attrs={
-                'class': 'form-control',
-                'placeholder': '비밀번호'
-            }),
-            'password2': forms.PasswordInput(attrs={
-                'class': 'form-control',
-                'placeholder': '비밀번호 확인'
-            }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 혹시 남아 있을지 모르는 기본 validators 제거
+        self.fields['password1'].validators = []
+        self.fields['password2'].validators = []
 
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if User.objects.filter(email=email).exists():
             raise forms.ValidationError('이미 사용 중인 이메일입니다.')
         return email
+
+    def clean_password2(self):
+        pw1 = self.cleaned_data.get('password1')
+        pw2 = self.cleaned_data.get('password2')
+        if pw1 and pw2 and pw1 != pw2:
+            raise forms.ValidationError('비밀번호가 일치하지 않습니다.')
+        return pw2
 
 from django import forms
 from .models import WorkFormDocument, WorkFormEntry

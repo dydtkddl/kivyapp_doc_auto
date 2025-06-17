@@ -180,11 +180,15 @@ def document_detail(request, pk):
     return render(request, 'app/document_detail.html', {
         'doc':   doc,
         'entry': entry,
-        })
-# libreoffice --headless --accept="socket,host=127.0.0.1,port=2002;urp;" --norestore &
+    })
+import subprocess
+import fitz
 from docxtpl import DocxTemplate
-from unoconv import convert
-import fitz  # PyMuPDF
+
+def convert_docx_to_pdf(docx_path):
+    subprocess.run(["unoconv", "-f", "pdf", docx_path], check=True)
+    return docx_path.replace('.docx', '.pdf')
+
 
 @login_required
 def document_create(request):
@@ -193,39 +197,32 @@ def document_create(request):
         if form.is_valid():
             raw = form.cleaned_data
 
-            timestamp   = timezone.now().strftime('%Y%m%d_%H%M%S')
-            slug        = sanitize_filename(raw['location'])
+            timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+            slug = sanitize_filename(raw['location'])
             user_folder = sanitize_filename(request.user.username)
             folder_name = f"{timestamp}_{slug}"
 
             save_dir = os.path.join(
-                settings.MEDIA_ROOT,
-                settings.BASE_STORAGE,
-                user_folder,
-                folder_name
+                settings.MEDIA_ROOT, settings.BASE_STORAGE, user_folder, folder_name
             )
             os.makedirs(save_dir, exist_ok=True)
 
-            date_str  = raw['work_date'].strftime('%Y%m%d')
+            date_str = raw['work_date'].strftime('%Y%m%d')
             docx_name = f"{date_str}_{slug}_작업확인서.docx"
             docx_path = os.path.join(save_dir, docx_name)
-            pdf_path  = docx_path.replace('.docx', '.pdf')
-            img_name  = f"{date_str}_{slug}_preview.png"
-            img_path  = os.path.join(save_dir, img_name)
+            pdf_path = docx_path.replace('.docx', '.pdf')
+            img_name = f"{date_str}_{slug}_preview.png"
+            img_path = os.path.join(save_dir, img_name)
 
             try:
-                tpl_path = os.path.join(settings.BASE_DIR, 'config', '작업확인서.docx')
-                tpl = DocxTemplate(tpl_path)
+                tpl = DocxTemplate(os.path.join(settings.BASE_DIR, 'config', '작업확인서.docx'))
                 tpl.render(create_context(raw))
                 tpl.save(docx_path)
 
-                # UNO 기반 PDF 변환
-                with open(docx_path, "rb") as docx_file:
-                    pdf_bytes = convert(docx_file, format='pdf')
-                    with open(pdf_path, "wb") as f_out:
-                        f_out.write(pdf_bytes)
+                # docx → pdf
+                convert_docx_to_pdf(docx_path)
 
-                # PDF → 이미지 (미리보기용)
+                # pdf → preview image
                 pdf = fitz.open(pdf_path)
                 pix = pdf[0].get_pixmap(dpi=150)
                 pix.save(img_path)
@@ -252,22 +249,22 @@ def document_create(request):
             messages.error(request, '입력 내용을 확인해주세요.')
     else:
         form = EntryForm(initial={
-            'work_date':    date.today(),
+            'work_date': date.today(),
             'confirm_date': date.today(),
-            'start_time':   time(9, 0),
-            'end_time':     time(18, 0),
-            'end_day':      'same',
+            'start_time': time(9, 0),
+            'end_time': time(18, 0),
+            'end_day': 'same',
         })
 
     return render(request, 'app/form.html', {
         'entry_form': form,
-        'mode':       '생성',
+        'mode': '생성',
     })
 
 
 @login_required
 def document_edit(request, pk):
-    doc   = get_object_or_404(WorkFormDocument, pk=pk, user=request.user)
+    doc = get_object_or_404(WorkFormDocument, pk=pk, user=request.user)
     entry = doc.entries.first()
 
     if request.method == 'POST':
@@ -277,12 +274,7 @@ def document_edit(request, pk):
             user_folder = sanitize_filename(request.user.username)
 
             # 기존 폴더 삭제
-            old_dir = os.path.join(
-                settings.MEDIA_ROOT,
-                settings.BASE_STORAGE,
-                user_folder,
-                doc.folder_name
-            )
+            old_dir = os.path.join(settings.MEDIA_ROOT, settings.BASE_STORAGE, user_folder, doc.folder_name)
             if os.path.isdir(old_dir):
                 shutil.rmtree(old_dir)
 
@@ -290,31 +282,22 @@ def document_edit(request, pk):
             slug = sanitize_filename(raw['location'])
             folder_name = f"{ts}_{slug}"
 
-            save_dir = os.path.join(
-                settings.MEDIA_ROOT,
-                settings.BASE_STORAGE,
-                user_folder,
-                folder_name
-            )
+            save_dir = os.path.join(settings.MEDIA_ROOT, settings.BASE_STORAGE, user_folder, folder_name)
             os.makedirs(save_dir, exist_ok=True)
 
-            date_str  = raw['work_date'].strftime('%Y%m%d')
+            date_str = raw['work_date'].strftime('%Y%m%d')
             docx_name = f"{date_str}_{slug}_작업확인서.docx"
             docx_path = os.path.join(save_dir, docx_name)
-            pdf_path  = docx_path.replace('.docx', '.pdf')
-            img_name  = f"{date_str}_{slug}_preview.png"
-            img_path  = os.path.join(save_dir, img_name)
+            pdf_path = docx_path.replace('.docx', '.pdf')
+            img_name = f"{date_str}_{slug}_preview.png"
+            img_path = os.path.join(save_dir, img_name)
 
             try:
-                tpl_path = os.path.join(settings.BASE_DIR, 'config', '작업확인서.docx')
-                tpl = DocxTemplate(tpl_path)
+                tpl = DocxTemplate(os.path.join(settings.BASE_DIR, 'config', '작업확인서.docx'))
                 tpl.render(create_context(raw))
                 tpl.save(docx_path)
 
-                with open(docx_path, "rb") as docx_file:
-                    pdf_bytes = convert(docx_file, format='pdf')
-                    with open(pdf_path, "wb") as f_out:
-                        f_out.write(pdf_bytes)
+                convert_docx_to_pdf(docx_path)
 
                 pdf = fitz.open(pdf_path)
                 pix = pdf[0].get_pixmap(dpi=150)
@@ -324,8 +307,8 @@ def document_edit(request, pk):
 
                 rel_dir = os.path.join(settings.BASE_STORAGE, user_folder, folder_name)
                 with transaction.atomic():
-                    doc.folder_name        = folder_name
-                    doc.docx_file.name     = os.path.join(rel_dir, docx_name)
+                    doc.folder_name = folder_name
+                    doc.docx_file.name = os.path.join(rel_dir, docx_name)
                     doc.preview_image.name = os.path.join(rel_dir, img_name)
                     doc.save()
                     form.save()
@@ -343,6 +326,6 @@ def document_edit(request, pk):
 
     return render(request, 'app/edit.html', {
         'form': form,
-        'doc':  doc,
+        'doc': doc,
         'mode': '수정',
     })

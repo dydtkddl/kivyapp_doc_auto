@@ -185,19 +185,19 @@ import subprocess
 import fitz
 from docxtpl import DocxTemplate
 
-def convert_docx_to_pdf(docx_path):
-    subprocess.run(["unoconv", "-f", "pdf", docx_path], check=True)
-    return docx_path.replace('.docx', '.pdf')
-
-
-def convert_docx_to_pdf(docx_path: str, out_dir: str = None) -> str:
-    """LibreOffice CLI로 DOCX → PDF 변환. out_dir 지정 시 그곳에 PDF 생성."""
-    cmd = ["libreoffice", "--headless", "--convert-to", "pdf", docx_path]
-    if out_dir:
-        cmd.insert(3, "--outdir")
-        cmd.insert(4, out_dir)
-    subprocess.run(cmd, check=True)
-    return docx_path.replace(".docx", ".pdf")
+def convert_docx_to_pdf(docx_path: str) -> str:
+    """
+    LibreOffice CLI로 DOCX → PDF 변환. 
+    CWD를 docx_path가 있는 폴더로 지정해서 동일 위치에 PDF 생성.
+    """
+    save_dir, docx_name = os.path.split(docx_path)
+    # CWD를 save_dir로, 변환 대상만 파일명으로
+    subprocess.run(
+        ["libreoffice", "--headless", "--convert-to", "pdf", docx_name],
+        cwd=save_dir,
+        check=True
+    )
+    return os.path.join(save_dir, docx_name.replace(".docx", ".pdf"))
 
 
 def generate_preview_image(pdf_path: str, img_path: str, dpi: int = 150) -> None:
@@ -239,7 +239,7 @@ def document_create(request):
                 tpl.save(docx_path)
 
                 # 2) PDF 변환
-                pdf_path = convert_docx_to_pdf(docx_path, save_dir)
+                pdf_path = convert_docx_to_pdf(docx_path)
 
                 # 3) 미리보기 이미지 생성
                 generate_preview_image(pdf_path, img_path)
@@ -321,7 +321,7 @@ def document_edit(request, pk):
                 tpl.save(docx_path)
 
                 # 2) PDF 변환
-                pdf_path = convert_docx_to_pdf(docx_path, save_dir)
+                pdf_path = convert_docx_to_pdf(docx_path)
 
                 # 3) 이미지 생성
                 generate_preview_image(pdf_path, img_path)

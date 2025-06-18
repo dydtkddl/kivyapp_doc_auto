@@ -39,11 +39,16 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('update-form');
-    const btn = document.getElementById('update-button');
+    const btn  = document.getElementById('update-button');
 
-    form.addEventListener('submit', function() {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();  // 스피너가 렌더링될 시간을 확보
       btn.disabled = true;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>업데이트 중...';
+      btn.innerHTML =
+        '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>업데이트 중...';
+
+      // 짧게 지연 후 실제 폼 제출
+      setTimeout(() => form.submit(), 50);
     });
   });
 </script>

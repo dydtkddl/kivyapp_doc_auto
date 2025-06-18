@@ -9,7 +9,7 @@
         <h5>문서 {{ mode }}</h5>
       </div>
       <div class="card-body">
-        <form method="post" novalidate>
+        <form id="entry-form" method="post" novalidate>
           {% csrf_token %}
           {% for field in entry_form %}
             <div class="mb-3">
@@ -23,7 +23,9 @@
               {% endfor %}
             </div>
           {% endfor %}
-          <button type="submit" class="btn btn-primary">저장</button>
+          <button id="save-button" type="submit" class="btn btn-primary">
+            저장
+          </button>
           <a href="{% url 'document_list' %}" class="btn btn-outline-secondary ms-2">
             취소
           </a>
@@ -32,4 +34,20 @@
     </div>
   </div>
 </div>
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('entry-form');
+    const btn = document.getElementById('save-button');
+
+    form.addEventListener('submit', function() {
+      // 버튼 비활성화
+      btn.disabled = true;
+      // 버튼 텍스트를 스피너로 교체
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>저장 중...';
+    });
+  });
+</script>
+{% endblock %}
 {% endblock %}

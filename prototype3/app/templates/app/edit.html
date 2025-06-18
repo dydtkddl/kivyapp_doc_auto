@@ -2,13 +2,14 @@
 {% load widget_tweaks %}
 
 {% block title %}문서 {{ mode }}{% endblock %}
+
 {% block content %}
 <div class="card shadow-sm mt-4">
   <div class="card-header bg-secondary text-white">
     <h5>문서 {{ mode }}</h5>
   </div>
   <div class="card-body">
-    <form method="post" novalidate>
+    <form id="update-form" method="post" novalidate>
       {% csrf_token %}
       <h6>✏️ 입력 항목</h6>
       {% for field in form %}
@@ -23,9 +24,27 @@
           {% endfor %}
         </div>
       {% endfor %}
-      <button type="submit" class="btn btn-success">업데이트</button>
-      <a href="{% url 'document_detail' doc.pk %}" class="btn btn-outline-secondary ms-2">취소</a>
+      <button id="update-button" type="submit" class="btn btn-success">
+        업데이트
+      </button>
+      <a href="{% url 'document_detail' doc.pk %}" class="btn btn-outline-secondary ms-2">
+        취소
+      </a>
     </form>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('update-form');
+    const btn = document.getElementById('update-button');
+
+    form.addEventListener('submit', function() {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>업데이트 중...';
+    });
+  });
+</script>
 {% endblock %}

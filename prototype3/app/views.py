@@ -8,7 +8,7 @@ import fitz
 # from docx2pdf import convert
 # from docxtpl import DocxTemplate
 import subprocess  # 추가
-from docxtpl import DocxTemplate
+from docxtpl import DocxTemplate, RichText
 import fitz  # PyMuPDF
 # import pythoncom
 
@@ -207,6 +207,25 @@ def generate_preview_image(pdf_path: str, img_path: str, dpi: int = 150) -> None
     pix.save(img_path)
     doc.close()
 
+def _build_styled_context(raw: dict) -> dict:
+    """
+    기존 create_context(raw)로 구성된 컨텍스트의 문자열 값을
+    RichText(size=raw['font_size']*2) 로 래핑해 반환.
+    """
+    base_ctx = create_context(raw)
+    styled = {}
+    font_size = raw.get("font_size", 12)
+    half_points = font_size * 2
+
+    for key, val in base_ctx.items():
+        if isinstance(val, str):
+            rt = RichText()
+            rt.add(val, size=half_points)
+            styled[key] = rt
+        else:
+            styled[key] = val
+    return styled
+
 
 @login_required
 def document_create(request):
@@ -214,6 +233,9 @@ def document_create(request):
         form = EntryForm(request.POST)
         if form.is_valid():
             raw = form.cleaned_data
+
+            # → 여기에 폰트 크기 읽어 넣기 (pt 단위)
+            raw["font_size"] = int(request.POST.get("font_size", 12))
 
             # 디렉토리·파일명 준비
             timestamp   = timezone.now().strftime("%Y%m%d_%H%M%S")
@@ -229,13 +251,16 @@ def document_create(request):
             date_str  = raw["work_date"].strftime("%Y%m%d")
             docx_name = f"{date_str}_{slug}_작업확인서.docx"
             docx_path = os.path.join(save_dir, docx_name)
-            img_name  = f"{date_str}_{slug}_preview.jpg"   # JPG로 변경
+            img_name  = f"{date_str}_{slug}_preview.jpg"
             img_path  = os.path.join(save_dir, img_name)
 
             try:
-                # 1) DOCX 생성
-                tpl = DocxTemplate(os.path.join(settings.BASE_DIR, "config/작업확인서.docx"))
-                tpl.render(create_context(raw))
+                # 1) DOCX 생성 (템플릿 렌더링)
+                tpl = DocxTemplate(
+                    os.path.join(settings.BASE_DIR, "config/작업확인서.docx")
+                )
+                styled_ctx = _build_styled_context(raw)
+                tpl.render(styled_ctx)
                 tpl.save(docx_path)
 
                 # 2) PDF 변환
@@ -261,15 +286,14 @@ def document_create(request):
                 messages.success(request, "작업확인서가 생성되었습니다.")
                 return redirect("document_detail", pk=doc.pk)
 
-            except subprocess.CalledProcessError as e:
-                logger.error("PDF 변환 실패", exc_info=True)
+            except subprocess.CalledProcessError:
                 messages.error(request, "PDF 변환 중 오류가 발생했습니다.")
             except Exception as e:
-                logger.error(e, exc_info=True)
                 messages.error(request, f"문서 생성 중 오류가 발생했습니다: {e}")
         else:
             messages.error(request, "입력 내용을 확인해주세요.")
     else:
+        # GET: 기본 폰트 크기 12pt를 템플릿에 넘겨줍니다.
         form = EntryForm(initial={
             "work_date":    date.today(),
             "confirm_date": date.today(),
@@ -279,8 +303,9 @@ def document_create(request):
         })
 
     return render(request, "app/form.html", {
-        "entry_form": form,
-        "mode":       "생성",
+        "entry_form":       form,
+        "mode":             "생성",
+        "font_size_default": 12,
     })
 
 
@@ -293,10 +318,12 @@ def document_edit(request, pk):
         form = EntryForm(request.POST, instance=entry)
         if form.is_valid():
             raw = form.cleaned_data
-            user_folder = sanitize_filename(request.user.username)
+            raw["font_size"] = int(request.POST.get("font_size", 12))
 
             # 기존 파일 제거
-            old_dir = os.path.join(settings.MEDIA_ROOT, settings.BASE_STORAGE, user_folder, doc.folder_name)
+            user_folder = sanitize_filename(request.user.username)
+            old_dir = os.path.join(settings.MEDIA_ROOT, settings.BASE_STORAGE,
+                                   user_folder, doc.folder_name)
             if os.path.isdir(old_dir):
                 shutil.rmtree(old_dir)
 
@@ -305,7 +332,8 @@ def document_edit(request, pk):
             slug = sanitize_filename(raw["location"])
             folder_name = f"{ts}_{slug}"
 
-            save_dir = os.path.join(settings.MEDIA_ROOT, settings.BASE_STORAGE, user_folder, folder_name)
+            save_dir = os.path.join(settings.MEDIA_ROOT, settings.BASE_STORAGE,
+                                    user_folder, folder_name)
             os.makedirs(save_dir, exist_ok=True)
 
             date_str  = raw["work_date"].strftime("%Y%m%d")
@@ -316,8 +344,11 @@ def document_edit(request, pk):
 
             try:
                 # 1) DOCX 생성
-                tpl = DocxTemplate(os.path.join(settings.BASE_DIR, "config/작업확인서.docx"))
-                tpl.render(create_context(raw))
+                tpl = DocxTemplate(
+                    os.path.join(settings.BASE_DIR, "config/작업확인서.docx")
+                )
+                styled_ctx = _build_styled_context(raw)
+                tpl.render(styled_ctx)
                 tpl.save(docx_path)
 
                 # 2) PDF 변환
@@ -344,15 +375,164 @@ def document_edit(request, pk):
             except subprocess.CalledProcessError:
                 messages.error(request, "PDF 변환 중 오류가 발생했습니다.")
             except Exception as e:
-                logger.error(e, exc_info=True)
                 messages.error(request, f"수정 중 오류가 발생했습니다: {e}")
         else:
             messages.error(request, "입력 내용을 확인해주세요.")
     else:
         form = EntryForm(instance=entry)
 
-    return render(request, "app/edit.html", {
-        "form": form,
-        "doc":  doc,
-        "mode": "수정",
+    return render(request, "app/form.html", {
+        "entry_form":       form,
+        "mode":             "수정",
+        "doc":              doc,
+        "font_size_default": getattr(entry, "font_size", 12),
     })
+
+# @login_required
+# def document_create(request):
+#     if request.method == "POST":
+#         form = EntryForm(request.POST)
+#         if form.is_valid():
+#             raw = form.cleaned_data
+
+#             # 디렉토리·파일명 준비
+#             timestamp   = timezone.now().strftime("%Y%m%d_%H%M%S")
+#             slug        = sanitize_filename(raw["location"])
+#             user_folder = sanitize_filename(request.user.username)
+#             folder_name = f"{timestamp}_{slug}"
+
+#             save_dir = os.path.join(
+#                 settings.MEDIA_ROOT, settings.BASE_STORAGE, user_folder, folder_name
+#             )
+#             os.makedirs(save_dir, exist_ok=True)
+
+#             date_str  = raw["work_date"].strftime("%Y%m%d")
+#             docx_name = f"{date_str}_{slug}_작업확인서.docx"
+#             docx_path = os.path.join(save_dir, docx_name)
+#             img_name  = f"{date_str}_{slug}_preview.jpg"   # JPG로 변경
+#             img_path  = os.path.join(save_dir, img_name)
+
+#             try:
+#                 # 1) DOCX 생성
+#                 tpl = DocxTemplate(os.path.join(settings.BASE_DIR, "config/작업확인서.docx"))
+#                 tpl.render(create_context(raw))
+#                 tpl.save(docx_path)
+
+#                 # 2) PDF 변환
+#                 pdf_path = convert_docx_to_pdf(docx_path)
+
+#                 # 3) 미리보기 이미지 생성
+#                 generate_preview_image(pdf_path, img_path)
+
+#                 # 4) 임시 PDF 삭제
+#                 os.remove(pdf_path)
+
+#                 # 5) DB 저장
+#                 rel_dir = os.path.join(settings.BASE_STORAGE, user_folder, folder_name)
+#                 with transaction.atomic():
+#                     doc = WorkFormDocument.objects.create(
+#                         user=request.user,
+#                         folder_name=folder_name,
+#                         docx_file=os.path.join(rel_dir, docx_name),
+#                         preview_image=os.path.join(rel_dir, img_name),
+#                     )
+#                     WorkFormEntry.objects.create(document=doc, **raw)
+
+#                 messages.success(request, "작업확인서가 생성되었습니다.")
+#                 return redirect("document_detail", pk=doc.pk)
+
+#             except subprocess.CalledProcessError as e:
+#                 logger.error("PDF 변환 실패", exc_info=True)
+#                 messages.error(request, "PDF 변환 중 오류가 발생했습니다.")
+#             except Exception as e:
+#                 logger.error(e, exc_info=True)
+#                 messages.error(request, f"문서 생성 중 오류가 발생했습니다: {e}")
+#         else:
+#             messages.error(request, "입력 내용을 확인해주세요.")
+#     else:
+#         form = EntryForm(initial={
+#             "work_date":    date.today(),
+#             "confirm_date": date.today(),
+#             "start_time":   time(9, 0),
+#             "end_time":     time(18, 0),
+#             "end_day":      "same",
+#         })
+
+#     return render(request, "app/form.html", {
+#         "entry_form": form,
+#         "mode":       "생성",
+#     })
+
+
+# @login_required
+# def document_edit(request, pk):
+#     doc   = get_object_or_404(WorkFormDocument, pk=pk, user=request.user)
+#     entry = doc.entries.first()
+
+#     if request.method == "POST":
+#         form = EntryForm(request.POST, instance=entry)
+#         if form.is_valid():
+#             raw = form.cleaned_data
+#             user_folder = sanitize_filename(request.user.username)
+
+#             # 기존 파일 제거
+#             old_dir = os.path.join(settings.MEDIA_ROOT, settings.BASE_STORAGE, user_folder, doc.folder_name)
+#             if os.path.isdir(old_dir):
+#                 shutil.rmtree(old_dir)
+
+#             # 새 디렉토리·파일명 준비
+#             ts = timezone.now().strftime("%Y%m%d_%H%M%S")
+#             slug = sanitize_filename(raw["location"])
+#             folder_name = f"{ts}_{slug}"
+
+#             save_dir = os.path.join(settings.MEDIA_ROOT, settings.BASE_STORAGE, user_folder, folder_name)
+#             os.makedirs(save_dir, exist_ok=True)
+
+#             date_str  = raw["work_date"].strftime("%Y%m%d")
+#             docx_name = f"{date_str}_{slug}_작업확인서.docx"
+#             docx_path = os.path.join(save_dir, docx_name)
+#             img_name  = f"{date_str}_{slug}_preview.jpg"
+#             img_path  = os.path.join(save_dir, img_name)
+
+#             try:
+#                 # 1) DOCX 생성
+#                 tpl = DocxTemplate(os.path.join(settings.BASE_DIR, "config/작업확인서.docx"))
+#                 tpl.render(create_context(raw))
+#                 tpl.save(docx_path)
+
+#                 # 2) PDF 변환
+#                 pdf_path = convert_docx_to_pdf(docx_path)
+
+#                 # 3) 이미지 생성
+#                 generate_preview_image(pdf_path, img_path)
+
+#                 # 4) 임시 PDF 삭제
+#                 os.remove(pdf_path)
+
+#                 # 5) DB 업데이트
+#                 rel_dir = os.path.join(settings.BASE_STORAGE, user_folder, folder_name)
+#                 with transaction.atomic():
+#                     doc.folder_name        = folder_name
+#                     doc.docx_file.name     = os.path.join(rel_dir, docx_name)
+#                     doc.preview_image.name = os.path.join(rel_dir, img_name)
+#                     doc.save()
+#                     form.save()
+
+#                 messages.success(request, "작업확인서가 성공적으로 수정되었습니다.")
+#                 return redirect("document_detail", pk=doc.pk)
+
+#             except subprocess.CalledProcessError:
+#                 messages.error(request, "PDF 변환 중 오류가 발생했습니다.")
+#             except Exception as e:
+#                 logger.error(e, exc_info=True)
+#                 messages.error(request, f"수정 중 오류가 발생했습니다: {e}")
+#         else:
+#             messages.error(request, "입력 내용을 확인해주세요.")
+#     else:
+#         form = EntryForm(instance=entry)
+
+#     return render(request, "app/edit.html", {
+#         "form": form,
+#         "doc":  doc,
+#         "mode": "수정",
+#     })

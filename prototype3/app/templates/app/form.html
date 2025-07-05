@@ -11,6 +11,8 @@
       <div class="card-body">
         <form id="entry-form" method="post" novalidate>
           {% csrf_token %}
+
+          {# 기존 필드들 #}
           {% for field in entry_form %}
             <div class="mb-3">
               {{ field.label_tag }}
@@ -23,6 +25,21 @@
               {% endfor %}
             </div>
           {% endfor %}
+
+          {# ➊ 폰트 크기 입력 추가 #}
+          <div class="mb-3">
+            <label for="font_size" class="form-label">글자 크기 (pt)</label>
+            <input
+              type="number"
+              name="font_size"
+              id="font_size"
+              class="form-control"
+              value="{{ font_size_default }}"
+              min="8" max="72" step="1"
+            >
+            <div class="form-text">DOCX 내 동적 텍스트의 글자 크기를 포인트 단위로 지정하세요.</div>
+          </div>
+
           <button id="save-button" type="submit" class="btn btn-primary">
             저장
           </button>
@@ -40,11 +57,8 @@
   document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('entry-form');
     const btn = document.getElementById('save-button');
-
     form.addEventListener('submit', function() {
-      // 버튼 비활성화
       btn.disabled = true;
-      // 버튼 텍스트를 스피너로 교체
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>저장 중...';
     });
   });

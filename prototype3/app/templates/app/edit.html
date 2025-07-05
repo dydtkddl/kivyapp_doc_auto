@@ -15,6 +15,8 @@
         <form id="update-form" method="post" novalidate>
           {% csrf_token %}
           <h6>✏️ 입력 항목</h6>
+
+          {# 기존 EntryForm 필드들 #}
           {% for field in form %}
             <div class="mb-3">
               <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
@@ -27,6 +29,25 @@
               {% endfor %}
             </div>
           {% endfor %}
+
+          {# ▶ 폰트 크기 입력 필드 추가 #}
+          <div class="mb-3">
+            <label for="font_size" class="form-label">글자 크기 (pt)</label>
+            <input
+              type="number"
+              name="font_size"
+              id="font_size"
+              class="form-control"
+              value="{{ font_size_default }}"
+              min="8"
+              max="72"
+              step="1"
+            >
+            <div class="form-text">
+              DOCX 내 동적 텍스트의 글자 크기를 포인트 단위로 지정하세요.
+            </div>
+          </div>
+
           <button id="update-button" type="submit" class="btn btn-success">
             업데이트
           </button>
@@ -45,15 +66,14 @@
 document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('update-form');
   const btn  = document.getElementById('update-button');
-  if (!form || !btn) return;  // 안전 장치
+  if (!form || !btn) return;
 
   form.addEventListener('submit', function(e) {
-    e.preventDefault();  // 스피너가 렌더링될 시간을 확보
+    e.preventDefault();
     btn.disabled = true;
     btn.innerHTML =
       '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>업데이트 중...';
 
-    // 50ms 뒤에 실제 제출
     setTimeout(() => form.submit(), 50);
   });
 });

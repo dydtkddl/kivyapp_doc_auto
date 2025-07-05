@@ -8,7 +8,7 @@ with open(BASE_DIR / 'config' / 'config.json', encoding='utf-8') as f:
 
 SECRET_KEY = 'your-secret-key'
 DEBUG = False
-ALLOWED_HOSTS = ["WorkForApp.pythonanywhere.com"]
+ALLOWED_HOSTS = ["WorkForApp.pythonanywhere.com", "*"]
 
 INSTALLED_APPS = [
      'widget_tweaks',

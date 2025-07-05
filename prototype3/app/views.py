@@ -10,6 +10,7 @@ import fitz
 import subprocess  # 추가
 from docxtpl import DocxTemplate, RichText
 import fitz  # PyMuPDF
+import pprint
 # import pythoncom
 
 from django.conf import settings
@@ -260,6 +261,7 @@ def document_create(request):
                     os.path.join(settings.BASE_DIR, "config/작업확인서.docx")
                 )
                 styled_ctx = _build_styled_context(raw)
+                pprint.pprint(styled_ctx)
                 tpl.render(styled_ctx)
                 tpl.save(docx_path)
 
@@ -348,6 +350,7 @@ def document_edit(request, pk):
                     os.path.join(settings.BASE_DIR, "config/작업확인서.docx")
                 )
                 styled_ctx = _build_styled_context(raw)
+                pprint.pprint(styled_ctx)
                 tpl.render(styled_ctx)
                 tpl.save(docx_path)
 
